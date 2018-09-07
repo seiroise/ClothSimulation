@@ -240,14 +240,14 @@ MonoBehaviour:
   wind: {x: 0, y: 0, z: 7.5}
   regist: 10
   iteration: 2
-  springConstant: 351
+  springConstant: 5000
   structualShrink: 1
   structualStretch: 1
   shearShrink: 1
   shearStretch: 1
   bendingShrink: 1
   bendingStretch: 0.5
-  drawPointSize: {x: 0.1, y: 0.1, z: 0.1}
+  drawPointSize: {x: 0.01, y: 0.01, z: 0.01}
   pointColor: {r: 1, g: 1, b: 1, a: 1}
   constraintColor:
   - {r: 1, g: 1, b: 1, a: 1}

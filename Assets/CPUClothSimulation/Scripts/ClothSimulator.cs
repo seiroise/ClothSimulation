@@ -192,7 +192,7 @@ namespace Seiro.ClothSimulation
 		/// </summary>
 		void UpdatePoints()
 		{
-			var dt = Mathf.Clamp(Time.deltaTime, 0.016f, 0.1f);
+			var dt = Mathf.Clamp(Time.deltaTime, 0.016f, 0.02f);
 			var time = Time.time;
 
 			// ベルレ積分
