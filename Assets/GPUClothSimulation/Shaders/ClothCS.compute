@@ -1,0 +1,109 @@
+#pragma kernel Integrate
+#pragma kernel CalcConstraint
+#pragma kernel ApplyConstraint
+
+#include "./Cloth.cginc"
+
+#define SIMULATION_BLOCK_SIZE (256)
+#define THREAD [numthreads(SIMULATION_BLOCK_SIZE, 1, 1)]
+#define FLOAT3_ZERO (float3(0, 0, 0))
+
+RWStructuredBuffer<ClothPoint> pointBuffer;
+StructuredBuffer<ClothConstraint> constraintBuffer;
+RWStructuredBuffer<float3> adjusterBuffer;
+RWStructuredBuffer<float> weightBuffer;
+
+float dt;
+
+int maxPointNum;
+int maxConstraintNum;
+
+float3 disturbance;
+float regist;
+
+float springConstant;
+float3 shrink;
+float3 stretch;
+
+THREAD
+void Integrate
+(
+	uint3 dtid : SV_DispatchThreadID
+)
+{
+	if(dtid.x >= (uint)maxPointNum) return;
+
+	ClothPoint p = pointBuffer[dtid.x];
+
+	float3 dp = p.position - p.prevPosition;
+	p.prevPosition = p.position;
+
+	dp += disturbance;
+	dp *= regist;
+	dp *= p.weight;
+
+	p.position += dp;
+
+	pointBuffer[dtid.x] = p;
+}
+
+THREAD
+void CalcConstraint
+(
+	uint3 dtid : SV_DispatchThreadID
+)
+{
+	if(dtid.x >= (uint)maxConstraintNum) return;
+
+	ClothConstraint c = constraintBuffer[dtid.x];
+	ClothPoint a = pointBuffer[c.aIdx];
+	ClothPoint b = pointBuffer[c.bIdx];
+
+	// kernelのなかでreturnってあんまりしないほうがいいんですかね？
+	if(a.weight + b.weight == 0) return;
+
+	float shr = dot(c.typeWeight, shrink);
+	float str = dot(c.typeWeight, stretch);
+
+	float3 d = b.position - a.position;
+	float len = sqrt(dot(d, d));
+	float f = (len - c.len) * springConstant;
+	f *= f >= 0 ? shr : str;
+
+	float3 dp = normalize(d);
+	dp *= f;
+	dp *= (dt * dt * 0.5);
+
+	float weight = a.weight + b.weight;
+
+	float3 aAdj = dp * (a.weight / weight);
+	adjusterBuffer[c.aIdx] += aAdj;
+	// adjusterBuffer[c.aIdx] += b.position;
+	// weightBuffer[c.aIdx] += 1;
+	weightBuffer[c.aIdx] += 1 / weight;
+
+	float3 bAdj = dp * (b.weight / weight);
+	adjusterBuffer[c.bIdx] -= bAdj;
+	// adjusterBuffer[c.bIdx] += a.position;
+	// weightBuffer[c.bIdx] += 1;
+	weightBuffer[c.bIdx] += 1 / weight;
+}
+
+THREAD
+void ApplyConstraint
+(
+	uint dtid : SV_DispatchThreadID
+)
+{
+	if(dtid.x >= (uint)maxPointNum) return;
+
+	ClothPoint p = pointBuffer[dtid.x];
+
+	// 計算しておいた充足を反映する
+	float3 dp = adjusterBuffer[dtid.x] / (weightBuffer[dtid.x] + 1e-8);
+	adjusterBuffer[dtid.x] = FLOAT3_ZERO;
+	weightBuffer[dtid.x] = 0;
+ 	p.position += dp;
+
+	pointBuffer[dtid.x] = p;
+}
